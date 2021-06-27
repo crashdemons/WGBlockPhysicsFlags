@@ -13,36 +13,41 @@ import com.sk89q.worldguard.protection.flags.StateFlag;
 import com.sk89q.worldguard.protection.flags.registry.FlagConflictException;
 import com.sk89q.worldguard.protection.flags.registry.FlagRegistry;
 import com.sk89q.worldguard.protection.regions.RegionQuery;
-import org.bukkit.ChatColor;
+import java.util.List;
 import org.bukkit.Location;
-import org.bukkit.block.Lectern;
-import org.bukkit.entity.Player;
+import org.bukkit.command.CommandExecutor;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockPhysicsEvent;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.event.player.PlayerTakeLecternBookEvent;
+import org.bukkit.command.CommandSender;
+import org.bukkit.command.Command;
+import org.bukkit.event.HandlerList;
 
 /**
  *
  * @author crash
  */
-public class WGBlockPhysicsPlugin extends JavaPlugin implements Listener {
+public class WGBlockPhysicsPlugin extends JavaPlugin implements Listener, CommandExecutor {
+
     WorldGuardPlugin wgp = null;
     WorldGuard wg = null;
     
-    
-    
+    private boolean eventsAreRegistered = false;
+
     public static final StateFlag FLAG_BLOCK_PHYSICS = new StateFlag("block-physics", true);
     //public static final StateFlag FLAG_BLOCK_PHYSICS_WARNING = new StateFlag("block-physics-warning", true);
-    
-    
-    
-    public WorldGuard getWorldGuard(){ return wg; }
-    public WorldGuardPlugin getWorldGuardPlugin(){ return wgp; }
-    
+
+    public WorldGuard getWorldGuard() {
+        return wg;
+    }
+
+    public WorldGuardPlugin getWorldGuardPlugin() {
+        return wgp;
+    }
+
     private WorldGuardPlugin findWorldGuardPlugin() {
         Plugin plugin = getServer().getPluginManager().getPlugin("WorldGuard");
 
@@ -53,15 +58,14 @@ public class WGBlockPhysicsPlugin extends JavaPlugin implements Listener {
 
         return (WorldGuardPlugin) plugin;
     }
-    
-    
-    private boolean wgInit(){
+
+    private boolean wgInit() {
         wgp = findWorldGuardPlugin();
         wg = WorldGuard.getInstance();
-        if(wgp==null || wg==null){
-            return false; 
+        if (wgp == null || wg == null) {
+            return false;
         }
-        
+
         FlagRegistry registry = wg.getFlagRegistry();
         try {
             // register our flag with the registry
@@ -77,46 +81,68 @@ public class WGBlockPhysicsPlugin extends JavaPlugin implements Listener {
             return false;
         }
     }
-    
-    private boolean pluginInit(){
+
+    private boolean pluginInit() {
         return true;
     }
-    
+
     @Override
-    public void onLoad(){
-        if(!wgInit()) return;
+    public void onLoad() {
+        if (!wgInit()) {
+            return;
+        }
     }
-    
+
     @Override
-    public void onEnable(){
+    public void onEnable() {
         getLogger().info("Enabling...");
-        if(!pluginInit()) return;
-        this.getServer().getPluginManager().registerEvents(this, this);
+        if (!pluginInit()) {
+            return;
+        }
         getLogger().info("Enabled.");
     }
-    
+
     @Override
-    public void onDisable(){
+    public void onDisable() {
         getLogger().info("Disabling...");
-        getLogger().info("Disabled."); 
-   }
+        getLogger().info("Disabled.");
+    }
 
+    @Override
+    public List<String> onTabComplete(CommandSender s, Command c, String a, String[] args) {
+        return null;
+    }
 
+    @Override
+    public boolean onCommand(CommandSender sender, Command command, String label, String args[]) {
+        String message = "Worldguard `block-physics` flags are now ";
+        boolean wasEnabled = eventsAreRegistered;
+        eventsAreRegistered = !eventsAreRegistered;
+        if(wasEnabled){
+            HandlerList.unregisterAll((Plugin) this);
+            message+="disabled";
+        }else{
+            this.getServer().getPluginManager().registerEvents(this, this);
+            message+="enabled";
+        }
+        sender.sendMessage("WGBlockPhysicsFlags: "+message);
+        return true;
+    }
 
-        @EventHandler(priority=EventPriority.HIGHEST)
-	public void onBlockPhysicsEvent(BlockPhysicsEvent event){
-            Location loc = event.getBlock().getLocation();
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onBlockPhysicsEvent(BlockPhysicsEvent event) {
+        Location loc = event.getBlock().getLocation();
 
-            LocalPlayer wgPlayer = null;
+        LocalPlayer wgPlayer = null;
 
-            com.sk89q.worldedit.util.Location wgLoc = BukkitAdapter.adapt(loc);
-            RegionQuery query = getWorldGuard().getPlatform().getRegionContainer().createQuery();
-            StateFlag.State state = query.queryState(wgLoc, wgPlayer, FLAG_BLOCK_PHYSICS);
-            //StateFlag.State warningstate = query.queryState(wgLoc, wgPlayer, FLAG_BLOCK_PHYSICS_WARNING);
-            if(state==StateFlag.State.DENY){
-               //if(warningstate!=StateFlag.State.DENY) player.sendMessage(ChatColor.RED+"Hey! "+ChatColor.GRAY+"Sorry, but you can't take books from lecterns here.");
-               event.setCancelled(true);
-            }
-	}
+        com.sk89q.worldedit.util.Location wgLoc = BukkitAdapter.adapt(loc);
+        RegionQuery query = getWorldGuard().getPlatform().getRegionContainer().createQuery();
+        StateFlag.State state = query.queryState(wgLoc, wgPlayer, FLAG_BLOCK_PHYSICS);
+        //StateFlag.State warningstate = query.queryState(wgLoc, wgPlayer, FLAG_BLOCK_PHYSICS_WARNING);
+        if (state == StateFlag.State.DENY) {
+            //if(warningstate!=StateFlag.State.DENY) player.sendMessage(ChatColor.RED+"Hey! "+ChatColor.GRAY+"Sorry, but you can't take books from lecterns here.");
+            event.setCancelled(true);
+        }
+    }
 
 }
